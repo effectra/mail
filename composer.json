@@ -1,0 +1,23 @@
+{
+    "name": "effectra/mail",
+    "description": "The Effectra File Mail package.",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Effectra\\Mail\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Mohammed Taha",
+            "email": "info@mohammedtaha.net"
+        }
+    ],
+    "require": {
+        "php": "^8.0.2",
+        "effectra/config": "^1.0",
+        "phpmailer/phpmailer": "^6.8"
+    },
+    "minimum-stability": "stable"
+}

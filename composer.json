@@ -15,8 +15,7 @@
         }
     ],
     "require": {
-        "php": "^8.0.2",
-        "effectra/config": "^1.0",
+        "effectra/config": "1.0",
         "phpmailer/phpmailer": "^6.8"
     },
     "minimum-stability": "stable"

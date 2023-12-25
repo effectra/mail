@@ -5,29 +5,31 @@ declare(strict_types=1);
 namespace Effectra\Mail;
 
 use Effectra\Config\ConfigDriver;
+use Effectra\DataOptimizer\Contracts\DataCollectionInterface;
+use Effectra\DataOptimizer\DataCollection;
+use Effectra\Mail\Build\MailBuilder;
+use Effectra\Mail\Contracts\MailInterface;
 use Effectra\Mail\Exception\ConnectException;
-use Exception;
+
 
 /**
- * class Inbox
- * 
- * This class provides functionality for reading emails.
- * 
+ * Inbox Class
+ *
+ * The Inbox class is responsible for connecting to a mail server, retrieving emails based on specified criteria,
+ * and providing a collection of mail objects. It extends the ConfigDriver class and implements functionality
+ * for managing IMAP inboxes.
+ *
  * @package Effectra\Mail
  */
 class Inbox extends ConfigDriver
 {
-    /**
-     * mail flag by default
-     * @var string
-     */
-    protected string $FLAG = 'ALL';
+    private  $imap = null;
 
-    /**
-     * mail flags
-     * @var array
-     */
-    private array $flags = [
+    /** @var string */
+    private string $criteria = 'ALL';
+
+    /** @var array */
+    private array $criteriaProvided = [
         'ALL', //return all messages matching the rest of the criteria
         'ANSWERED', //match messages with the \\ANSWERED flag set
         'BCC', // match messages with "string" in the Bcc: field
@@ -54,227 +56,98 @@ class Inbox extends ConfigDriver
         'UNSEEN', //match messages which have not been read yet
     ];
 
-    /**
-     * Connect to the mail server and return the IMAP connection.
-     *
-     * @throws Exception If unable to connect to the mail server.
-     * @return \IMAP\Connection|bool The IMAP connection or false on failure.
-     */
-    private function connect()
+    public function getConnection()
     {
-        $imapPath = "{" . $this->host . ":" . $this->port . "/$this->driver/ssl}INBOX";
+        return $this->imap;
+    }
 
-        $stream = imap_open($imapPath, $this->username, $this->password);
-
-        if (!$stream) {
-            throw new ConnectException('Cannot connect to mailer: ' . imap_last_error());
-        }
-
-        return $stream;
+    public function closeConnection()
+    {
+        imap_close($this->imap);
+        $this->imap = null;
     }
 
     /**
-     * Set the type of emails to be returned.
+     * Set the search criteria.
      *
-     * @param string $flag The flag representing the type of emails.
-     * @throws Exception If the provided flag is not valid.
-     * @return Inbox Returns the Inbox object.
+     * @param string $criteria
+     * @throws \Exception
      */
-    public function setFlag(string $flag = 'ALL'): self
+    public function setCriteria(string $criteria)
     {
-        if (!in_array($flag, $this->flags)) {
-            throw new Exception('Invalid flag');
+        if (!in_array($criteria, $this->criteriaProvided)) {
+            throw new \InvalidArgumentException('Invalid criteria');
         }
-
-        $this->FLAG = $flag;
-
-        return $this;
+        $this->criteria = $criteria;
     }
 
     /**
-     * Retrieve emails based on the set criteria.
+     * Get the current search criteria.
      *
-     * @return array An array of emails matching the set criteria.
+     * @return string
      */
-    public function get(): array
+    public function getCriteria(): string
     {
-        $inbox = $this->connect();
-        $emails = imap_search($inbox, $this->FLAG);
+        return  $this->criteria;
+    }
 
-        if ($emails == false) {
-            return [];
+    /**
+     * Connect to the mail server.
+     *
+     * @throws ConnectException
+     */
+    public function connect()
+    {
+        try {
+            $this->imap =  imap_open($this->path($this->host, $this->port, $this->driver), $this->username, $this->password);
+        } catch (\Exception $e) {
+            throw new ConnectException('Failed to connect to the mail server', 1, $e);
         }
+    }
 
+    /**
+     * Build the mailbox path.
+     *
+     * @param string $host
+     * @param int $port
+     * @param string $driver
+     * @return string
+     */
+    private function path(string $host, int $port, string $driver = 'IMAP'): string
+    {
+        return "{" . $host . ":" . $port . "/$driver/ssl}INBOX";
+    }
+
+    /**
+     * Get a collection of emails based on the search criteria.
+     *
+     * @return DataCollectionInterface|bool
+     */
+    public function getMails(): DataCollectionInterface
+    {
         $result = [];
+        $emails = imap_search($this->imap, $this->criteria);
 
-        foreach ($emails as $mail) {
-            $headerInfo = imap_headerinfo($inbox, $mail);
-
-            $output = [
-                'subject' => $headerInfo->subject,
-                'to' => $headerInfo->toaddress,
-                'date' => $headerInfo->date,
-                'from' => $this->parseEmail($headerInfo->fromaddress),
-                'reply_to' => $this->parseEmail($headerInfo->reply_toaddress),
-                'flag' =>  $this->FLAG,
-                'body' =>  [],
-            ];
-
-            $emailStructure = imap_fetchstructure($inbox, $mail);
-
-            if (!isset($emailStructure->parts)) {
-                $output['body'] = imap_body($inbox, $mail, FT_PEEK);
-            } else {
-                $output['body'] = [];
-                $this->extractAttachments($inbox, $mail, $emailStructure, $output['body']);
-            }
-
-            $result[] = $output;
+        if (!$emails) {
+            return new DataCollection([]);
         }
 
-        imap_expunge($inbox);
-        imap_close($inbox);
+        foreach ($emails as $email) {
+            $result[] = $this->getMail($email);
+        }
 
-        return $result;
+        return new DataCollection($result);
     }
 
     /**
-     * Extract attachments from the email structure recursively.
+     * Get an email by its unique identifier.
      *
-     * @param resource $inbox The IMAP stream resource.
-     * @param int $mail The message ID.
-     * @param object $structure The email structure.
-     * @param array $attachments Reference to the attachments array.
-     * @param string $partNumber The current part number (for nested parts).
+     * @param $email
+     * @return MailInterface
      */
-    private function extractAttachments($inbox, $mail, $structure, &$attachments, $partNumber = '')
+    public function getMail($email): MailInterface
     {
-        if (isset($structure->parts) && is_array($structure->parts)) {
-            foreach ($structure->parts as $index => $subStructure) {
-                $newPartNumber = $partNumber . ($index + 1);
 
-                if ($subStructure->type === 0) { // Part is an attachment
-                    $attachment = $this->fetchAttachment($inbox, $mail, $newPartNumber);
-                    if ($attachment) {
-                        $attachments[] = $attachment;
-                    }
-                } elseif ($subStructure->type === 1) { // Part is an embedded message
-                    $this->extractAttachments($inbox, $mail, $subStructure, $attachments, $newPartNumber . '.');
-                } elseif ($subStructure->type === 2) { // Part is an inline image
-                    $attachment = $this->fetchAttachment($inbox, $mail, $newPartNumber);
-                    if ($attachment) {
-                        $attachments[] = $attachment;
-                    }
-                } elseif ($subStructure->type === 3) { // Part is a nested multipart
-                    $this->extractAttachments($inbox, $mail, $subStructure, $attachments, $newPartNumber . '.');
-                }
-            }
-        }
-    }
-
-    /**
-     * Fetch an attachment from the email.
-     *
-     * @param  $inbox The IMAP stream resource.
-     * @param int $mail The message ID.
-     * @param string $partNumber The part number of the attachment.
-     * @return array|false An array containing the attachment information, or false on failure.
-     */
-    private function fetchAttachment($inbox, $mail, $partNumber)
-    {
-        if (!is_numeric($partNumber)) {
-            return false;
-        }
-
-        $attachment = [];
-        $attachmentData = imap_fetchbody($inbox, $mail, $partNumber);
-
-        if ($attachmentData) {
-            $structure = imap_fetchstructure($inbox, $mail);
-
-            if (isset($structure->parts[$partNumber - 1]->dparameters) && is_array($structure->parts[$partNumber - 1]->dparameters)) {
-                foreach ($structure->parts[$partNumber - 1]->dparameters as $dparam) {
-                    if (strtolower($dparam->attribute) === 'filename') {
-                        $attachment['filename'] = $dparam->value;
-                        break;
-                    }
-                }
-            } elseif (isset($structure->parts[$partNumber - 1]->parameters) && is_array($structure->parts[$partNumber - 1]->parameters)) {
-                foreach ($structure->parts[$partNumber - 1]->parameters as $param) {
-                    if (strtolower($param->attribute) === 'name') {
-                        $attachment['filename'] = $param->value;
-                        break;
-                    }
-                }
-            }
-
-            $attachment['data'] = $attachmentData;
-
-            return $attachment;
-        }
-
-        return false;
-    }
-
-    /**
-     * Parse the name and email address from an email string.
-     *
-     * @param string $email The email string to parse.
-     * @return array|false An array containing the 'name' and 'email' keys, or false on failure.
-     */
-    private function parseEmail($email)
-    {
-        $addressList = imap_rfc822_parse_adrlist($email, '');
-
-        if ($addressList) {
-            $address = $addressList[0];
-            $name = isset($address->personal) ? $address->personal : '';
-            $email = $address->mailbox . '@' . $address->host;
-
-            return array(
-                'name' => $name,
-                'email' => $email
-            );
-        } else {
-            return false;
-        }
-    }
-
-    /**
-     * Get the flag information from the IMAP header.
-     *
-     * @param  $imapStream The IMAP stream.
-     * @param int $msgNumber The message number.
-     * @return array|false An array containing the flags, or false on failure.
-     */
-    private function getImapFlags($imapStream, $msgNumber)
-    {
-        $header = imap_headerinfo($imapStream, $msgNumber);
-
-        if ($header) {
-            $flags = array();
-            if ($header->Unseen) {
-                $flags[] = 'Unseen';
-            }
-            if ($header->Flagged) {
-                $flags[] = 'Flagged';
-            }
-            if ($header->Answered) {
-                $flags[] = 'Answered';
-            }
-            if ($header->Deleted) {
-                $flags[] = 'Deleted';
-            }
-            if ($header->Draft) {
-                $flags[] = 'Draft';
-            }
-            if ($header->Recent) {
-                $flags[] = 'Recent';
-            }
-
-            return $flags;
-        } else {
-            return false;
-        }
+        return (new MailBuilder($this->imap, $email))->build();
     }
 }

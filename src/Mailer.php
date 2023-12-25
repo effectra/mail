@@ -6,38 +6,51 @@ namespace Effectra\Mail;
 
 use Effectra\Config\ConfigDriver;
 use Effectra\Mail\Contracts\MailerInterface;
+use Effectra\Mail\Contracts\MailInterface;
+use Effectra\Mail\Exception\MailerException;
 
 /**
- * Class Mailer
- *
- * This class represents a mailer for sending emails using a specific driver.
- * It extends the ConfigDriver class and implements the MailerInterface.
- *
- * @package Effectra\Mail
+ * class Mailer
+ * This class represents a mailer for sending emails using a specific driver. It extends the ConfigDriver class and implements the MailerInterface.
  */
 class Mailer extends ConfigDriver implements MailerInterface
 {
-    use MailerTrait;
 
     /**
-     * Mailer constructor.
+     * Send an email using the provided MailInterface instance.
      *
-     * Initializes the mailer with the provided configuration.
-     *
-     * @param string $driver The mail driver.
-     * @param string $host The mail server host.
-     * @param int $port The mail server port.
-     * @param string $username The mail server username.
-     * @param string $password The mail server password.
-     * @param string $from The sender's email address.
+     * @param MailInterface $mail The MailInterface instance representing the email to be sent.
      */
-    public function __construct(string $driver, string $host, int $port, string $username, string $password, string $from)
+    public function send(MailInterface $mail)
     {
-        // Call the parent constructor with the provided arguments
-        parent::__construct(...func_get_args());
+        // Use the methods from the Mail class to get the necessary information
+        
+        $to = join(',',array_map(fn($address) => (string) $address,$mail->getTo()));
+        $from = (string) $mail->getFrom();
+        $subject = $mail->getSubject();
+        $html = $mail->getHtml();
 
-        // Set the EMAIL_FROM and REPLY_TO properties to the provided $from value
-        $this->EMAIL_FROM = $from;
-        $this->REPLY_TO = $from;
+        // Additional parameters can be added based on your requirements
+        // For example, you might want to add CC and BCC recipients
+        $headers = "From: $from\r\n";
+        $headers .= "Content-Type: text/html\r\n";
+
+        // Add CC and BCC if they are set in the Mail object
+        $cc = $mail->getCc();
+        $bcc = $mail->getBcc();
+
+        if ($cc) {
+            $headers .= "Cc: $cc\r\n";
+        }
+
+        if ($bcc) {
+            $headers .= "Bcc: $bcc\r\n";
+        }
+
+        try {
+            return mail($to, $subject, $html, $headers);
+        } catch (\Exception $e) {
+            throw new MailerException('Mailer Error: ' . $e->getMessage());
+        }
     }
 }

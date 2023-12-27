@@ -24,12 +24,10 @@ composer require effectra/mail
 To send emails using the Effectra\Mail package, you need to create a mailer instance. The `MailerFactory` class provides a convenient way to create the mailer instance:
 
 ```php
-use Effectra\Mail\Factory\MailerFactory;
-
-$mailerFactory = new MailerFactory();
+use Effectra\Mail\Mailer;
 
 // Create a mailer instance
-$mailer = $mailerFactory->createMailer(
+$mailer = new Mailer(
     'smtp',         // Mail driver (e.g., 'smtp', 'sendmail')
     'mail.example.com',  // Mail server host
     587,            // Mail server port
@@ -44,19 +42,20 @@ $mailer = $mailerFactory->createMailer(
 Once you have a mailer instance, you can use it to send emails. The `Mailer` class provides methods for setting the email recipients, subject, content, and more. Here's an example of sending an email:
 
 ```php
+$mail = new Mail();
 // Set email recipients
-$mailer->to('recipient1@example.com');
-$mailer->cc('recipient2@example.com');
-$mailer->bcc('recipient3@example.com');
+$mail->to('recipient1@example.com');
+$mail->cc('recipient2@example.com');
+$mail->bcc('recipient3@example.com');
 
 // Set email subject and content
-$mailer->subject('Hello, world!');
-$mailer->text('This is the plain text content of the email.');
-$mailer->html('<p>This is the HTML content of the email.</p>');
+$mail->subject('Hello, world!');
+$mail->text('This is the plain text content of the email.');
+$mail->html('<p>This is the HTML content of the email.</p>');
 
 // Send the email
 try {
-    $mailer->send();
+    $mailer->send($mail);
     echo 'Email sent successfully!';
 } catch (Exception $e) {
     echo 'An error occurred while sending the email: ' . $e->getMessage();

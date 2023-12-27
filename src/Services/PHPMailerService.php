@@ -26,9 +26,6 @@ class PHPMailerService extends ConfigDriver implements MailerInterface
      */
     public function send(MailInterface $mail)
     {
-        if (!$mail) {
-            throw new MailerException('please add mail', 2);
-        }
         $phpMailer = new PHPMailer();
 
         $phpMailer->isSMTP();

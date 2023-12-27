@@ -9,15 +9,34 @@ use Effectra\Mail\Contracts\FullMailInterface;
 use Effectra\Mail\Factory\FullMailFactory;
 use IMAP\Connection;
 
+/**
+ * Class MailBuilder
+ *
+ * The MailBuilder class is responsible for building a FullMailInterface object by extracting information
+ * from an IMAP connection and a specific message number. It handles the creation of a FullMail object
+ * with details such as sender, recipient, subject, attachments, and more.
+ *
+ */
 class MailBuilder
 {
 
+    /**
+     * MailBuilder constructor.
+     *
+     * @param Connection $imapConnection The IMAP connection object.
+     * @param int $messageNumber The number of the message to build.
+     */
     public function __construct(
         private readonly Connection $imapConnection,
         private readonly int $messageNumber
     ) {
     }
 
+    /**
+     * Build a FullMailInterface object with details extracted from the IMAP connection.
+     *
+     * @return FullMailInterface
+     */
     public function build(): FullMailInterface
     {
         $headerInfo = imap_headerinfo($this->imapConnection, $this->messageNumber);
@@ -69,7 +88,9 @@ class MailBuilder
     }
 
     /**
-     * @return Attachment[] an array of Attachments represented as Attachment object
+     * Get an array of attachments represented as Attachment objects.
+     *
+     * @return Attachment[]
      */
     public function getAttachments(): array
     {
@@ -101,16 +122,37 @@ class MailBuilder
         return $attachments;
     }
 
+    /**
+     * Get the text body of the email.
+     *
+     * @return false|string
+     */
     public function getTextBody()
     {
         return $this->getPart($this->imapConnection, $this->messageNumber, "TEXT/PLAIN");
     }
 
+    /**
+     * Get the HTML body of the email.
+     *
+     * @return false|string
+     */
     public function getHtmlBody()
     {
         return $this->getPart($this->imapConnection, $this->messageNumber, "TEXT/HTML");
     }
 
+    /**
+     * Get a specific part of the email based on MIME type, structure, and part number.
+     *
+     * @param resource|Connection $imap The IMAP resource connection.
+     * @param int $uid The unique identifier of the email.
+     * @param string $mimetype The MIME type to match.
+     * @param object|false $structure The structure of the email, if available.
+     * @param string|false $partNumber The part number of the email, if available.
+     *
+     * @return false|string The content of the specified part or false if not found.
+     */
     private function getPart($imap, $uid, $mimetype, $structure = false, $partNumber = false)
     {
         if (!$structure) {
@@ -149,6 +191,12 @@ class MailBuilder
         return false;
     }
 
+    /**
+     * Get the MIME type of a given structure.
+     *
+     * @param object $structure
+     * @return string
+     */
     private function getMimeType($structure)
     {
         $primaryMimetype = ["TEXT", "MULTIPART", "MESSAGE", "APPLICATION", "AUDIO", "IMAGE", "VIDEO", "OTHER"];
@@ -159,17 +207,35 @@ class MailBuilder
         return "TEXT/PLAIN";
     }
 
+    /**
+     * Convert a date string or timestamp to a DateTimeImmutable object.
+     *
+     * @param mixed $date
+     * @return \DateTimeImmutable
+     */
     private function getDatetime($date)
     {
         return is_numeric($date) ? new \DateTimeImmutable('@' . $date) : new \DateTimeImmutable($date);
     }
 
+    /**
+     * Set a boolean value based on a cleaned and trimmed input.
+     *
+     * @param mixed $value
+     * @return bool
+     */
     private function setBoolean($value): bool
     {
         $cleanValue = trim($value);
         return !empty($cleanValue) ? true : false;
     }
 
+    /**
+     * Set an array of addresses from a comma-separated string.
+     *
+     * @param string $address
+     * @return array
+     */
     public function setAddresses(string $address): array
     {
         return explode(', ', $address);

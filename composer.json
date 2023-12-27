@@ -1,6 +1,6 @@
 {
     "name": "effectra/mail",
-    "description": "The Effectra File Mail package.",
+    "description": "The Effectra Mail package.",
     "type": "library",
     "license": "MIT",
     "autoload": {
@@ -16,7 +16,17 @@
     ],
     "require": {
         "effectra/config": "1.0",
-        "phpmailer/phpmailer": "^6.8"
+        "phpmailer/phpmailer": "^6.8",
+        "effectra/data-optimizer": "^1.1"
     },
-    "minimum-stability": "stable"
+    "minimum-stability": "stable",
+    "require-dev": {
+        "pestphp/pest": "^2.28",
+        "symfony/var-dumper": "^6.0"
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    }
 }

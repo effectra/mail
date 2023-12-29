@@ -29,7 +29,7 @@ trait MailSimpleTrait
      */
     public function to(string|Address $email): self
     {
-        return $this->setTo($email);
+        return $this->addTo($email);
     }
 
     /**

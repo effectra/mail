@@ -17,7 +17,8 @@
     "require": {
         "effectra/config": "1.0",
         "phpmailer/phpmailer": "^6.8",
-        "effectra/data-optimizer": "^1.1"
+        "effectra/data-optimizer": "^1.1",
+        "psr/log": "^3.0"
     },
     "minimum-stability": "stable",
     "require-dev": {

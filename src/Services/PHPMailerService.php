@@ -8,6 +8,7 @@ use Effectra\Config\ConfigDriver;
 use Effectra\Mail\Contracts\MailerInterface;
 use Effectra\Mail\Contracts\MailInterface;
 use Effectra\Mail\Exception\MailerException;
+use Effectra\Mail\Utils\LoggerTrait;
 use PHPMailer\PHPMailer\PHPMailer;
 
 /**
@@ -17,6 +18,7 @@ use PHPMailer\PHPMailer\PHPMailer;
  */
 class PHPMailerService extends ConfigDriver implements MailerInterface
 {
+    use LoggerTrait;
     /**
      * Send an email using PHPMailer.
      *
@@ -28,6 +30,13 @@ class PHPMailerService extends ConfigDriver implements MailerInterface
     {
         $phpMailer = new PHPMailer();
 
+        if ($this->logger) {
+            $phpMailer->SMTPDebug = 2;  // Set the debug level (0 to disable)
+            $phpMailer->Debugoutput = function ($str, $level) {
+                $this->startLog($level, $str);
+            };
+        }
+
         $phpMailer->isSMTP();
         $phpMailer->Host = $this->getHost();
         $phpMailer->SMTPAuth = true;
@@ -37,21 +46,36 @@ class PHPMailerService extends ConfigDriver implements MailerInterface
         // $phpMailer->SMTPSecure = 'tls';
         $phpMailer->Port = $this->getPort();
 
-        $phpMailer->setFrom((string) $mail->getFrom());
+        $phpMailer->setFrom(
+            $mail->getFrom()->getEmail(),
+            $mail->getFrom()->getName()
+        );
 
         foreach ($mail->getTo() as $address) {
-            $phpMailer->addAddress($address->getEmail(), $address->getName());
+            $phpMailer->addAddress(
+                $address->getEmail(),
+                $address->getName()
+            );
         }
 
         if ($mail->getReplyTo()) {
-            $phpMailer->addReplyTo((string) $mail->getReplyTo());
+            $phpMailer->addReplyTo(
+                $mail->getReplyTo()->getEmail(),
+                $mail->getReplyTo()->getName()
+            );
         }
         if ($mail->getCC()) {
-            $phpMailer->addCC((string) $mail->getCC());
+            $phpMailer->addCC(
+                $mail->getCC()->getEmail(),
+                $mail->getCC()->getName()
+            );
         }
 
         if ($mail->getBcc()) {
-            $phpMailer->addBCC((string) $mail->getBcc());
+            $phpMailer->addBCC(
+                $mail->getBcc()->getEmail(),
+                $mail->getBcc()->getName()
+            );
         }
 
         $phpMailer->Subject = $mail->getSubject();
@@ -73,9 +97,8 @@ class PHPMailerService extends ConfigDriver implements MailerInterface
             }
         }
 
-        if (!$phpMailer->send()) {
-            throw new MailerException('Mailer Error: ' . $phpMailer->ErrorInfo, 1);
-        }
+        $phpMailer->send();
+
         $phpMailer->ClearAddresses();
         $phpMailer->ClearAttachments();
     }

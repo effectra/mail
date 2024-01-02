@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Effectra\Mail\Contracts;
 
 /**
- * Interface MailFactoryInterface
+ * Interface FullMailFactoryInterface
  */
-interface MailFactoryInterface
+interface FullMailFactoryInterface
 {
     /**
      * Create a new instance of a mail object.
